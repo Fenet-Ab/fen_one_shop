@@ -1,0 +1,29 @@
+import { Controller, Get, Put, Body, Req, UseGuards } from '@nestjs/common';
+import { ProfileService } from './profile.service';
+import { JwtGuard } from '../auth/guards/jwt.guard';
+
+import { Delete } from '@nestjs/common';
+
+
+@Controller('profile')
+export class ProfileController {
+    constructor(private profileService: ProfileService) { }
+
+    @UseGuards(JwtGuard)
+    @Get()
+    getProfile(@Req() req: any) {
+        return this.profileService.getProfile(req.user.userId);
+    }
+
+    @UseGuards(JwtGuard)
+    @Put()
+    updateProfile(@Req() req: any, @Body() body: any) {
+        return this.profileService.updateProfile(req.user.userId, body);
+    }
+    @UseGuards(JwtGuard)
+    @Delete()
+    deleteProfile(@Req() req: any) {
+        return this.profileService.deleteProfile(req.user.userId);
+    }
+
+}

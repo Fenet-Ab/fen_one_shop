@@ -1,0 +1,4 @@
+
+# Backup git directories
+backend/.git.backup/
+frontend/.git.backup/
