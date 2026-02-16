@@ -45,6 +45,7 @@ model Material {
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
   createdAt   DateTime    @default(now())
+  isDeleted   Boolean     @default(false)
   averageRating Float?    @default(0) // Cache for average rating
   ratingCount   Int       @default(0) // Total number of ratings
   cartItems   CartItem[]

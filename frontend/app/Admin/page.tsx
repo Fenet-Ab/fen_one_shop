@@ -169,13 +169,7 @@ export default function AdminDashboard() {
       isPositive: true,
       icon: <Users className="w-5 h-5 text-[#D4AF37]" />,
     },
-    {
-      title: "Sales Growth",
-      value: "14.2%",
-      change: "-2.4%",
-      isPositive: false,
-      icon: <BarChart3 className="w-5 h-5 text-[#D4AF37]" />,
-    },
+
   ];
 
 
@@ -324,12 +318,7 @@ export default function AdminDashboard() {
                   <p className="text-gray-400 mt-2 text-lg">Your business at a glance.</p>
                 </div>
                 <div className="flex space-x-4">
-                  {/* <button className="bg-transparent text-gray-400 px-5 py-2.5 rounded-xl text-sm font-semibold hover:text-white hover:bg-gray-800 transition-all border border-gray-800">
-                    Reports
-                  </button>
-                  <button className="bg-[#D4AF37] text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-[#B8860B] transition-all shadow-xl shadow-[#D4AF37]/10">
-                    Live View
-                  </button> */}
+
                 </div>
               </div>
 

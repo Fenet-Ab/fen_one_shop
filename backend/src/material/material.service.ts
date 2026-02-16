@@ -10,6 +10,9 @@ export class MaterialService {
 
   async findAll() {
     return this.prisma.material.findMany({
+      where: {
+        isDeleted: false,
+      },
       include: {
         category: true,
       },
@@ -20,8 +23,11 @@ export class MaterialService {
   }
 
   async findOne(id: string) {
-    return this.prisma.material.findUnique({
-      where: { id },
+    return this.prisma.material.findFirst({
+      where: {
+        id,
+        isDeleted: false
+      },
       include: {
         category: true,
       },
@@ -77,19 +83,22 @@ export class MaterialService {
     });
   }
   async deleteMaterial(id: string) {
+    // Check if exists
     const material = await this.prisma.material.findUnique({
       where: { id },
     });
 
     if (!material) throw new Error('Material not found');
 
-    // Extract file name from URL
-    const fileName = material.imageUrl.split('/').pop();
+    // Remove from carts so users don't see deleted items
+    await this.prisma.cartItem.deleteMany({
+      where: { materialId: id }
+    });
 
-    await supabase.storage.from('materials').remove([fileName!]);
-
-    await this.prisma.material.delete({
+    // Soft delete
+    await this.prisma.material.update({
       where: { id },
+      data: { isDeleted: true },
     });
 
     return { message: 'Material deleted successfully' };

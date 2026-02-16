@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { X, Upload, Loader2, Trash2, Edit2 } from "lucide-react";
+import { toast } from "react-toastify";
 import DeleteModal from "./DeleteModal";
 
 interface Category {
@@ -138,6 +139,12 @@ export default function ProductModal({
                 throw new Error(errorData.message || 'Failed to save product');
             }
 
+            if (mode === 'create') {
+                toast.success('Product created successfully');
+            } else {
+                toast.success('Product updated successfully');
+            }
+
             onSuccess();
             onClose();
             resetForm();
@@ -169,6 +176,7 @@ export default function ProductModal({
                 throw new Error('Failed to delete product');
             }
 
+            toast.success('Product deleted successfully');
             onSuccess();
             onClose();
         } catch (err: any) {
