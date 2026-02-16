@@ -1,17 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ProfileService } from './profile.service';
 import { ProfileController } from './profile.controller';
-import { PrismaService } from '../prisma/prisma.service';
-import { JwtModule } from '@nestjs/jwt';
-import { JwtGuard } from '../auth/guards/jwt.guard';
+import { PrismaModule } from '../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-    }),
-  ],
+  imports: [PrismaModule, AuthModule],
   controllers: [ProfileController],
-  providers: [ProfileService, PrismaService, JwtGuard],
+  providers: [ProfileService],
 })
 export class ProfileModule { }

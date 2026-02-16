@@ -32,5 +32,22 @@ export class ProfileService {
             message: 'Account deleted successfully',
         };
     }
+    async getAllUsers() {
+        console.log('Fetching all users for admin...');
+        const users = await this.prisma.user.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                createdAt: true,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+        console.log(`Successfully retrieved ${users.length} users.`);
+        return users;
+    }
 
 }

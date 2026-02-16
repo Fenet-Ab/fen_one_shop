@@ -36,12 +36,18 @@ const Register = ({ initialIsLogin = true }: RegisterProps) => {
     e.preventDefault();
     setLoading(true);
 
+    const payload = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      password: formData.password, // Don't trim password
+    };
+
     try {
       if (isLogin) {
         // ---- LOGIN ----
         const res = await axios.post("http://localhost:5000/api/auth/login", {
-          email: formData.email,
-          password: formData.password,
+          email: payload.email,
+          password: payload.password,
         });
 
         const { token, role } = res.data;
@@ -52,7 +58,7 @@ const Register = ({ initialIsLogin = true }: RegisterProps) => {
         }
 
         // ✅ Save user info & token via context
-        login(token, role);
+        login(token, role, res.data.user?.id, res.data.user?.email);
 
         toast.success("Login successful!");
 
@@ -68,9 +74,9 @@ const Register = ({ initialIsLogin = true }: RegisterProps) => {
       } else {
         // ---- SIGNUP ----
         const res = await axios.post("http://localhost:5000/api/auth/register", {
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
+          name: payload.name,
+          email: payload.email,
+          password: payload.password,
         });
 
         toast.success("Signup successful! Redirecting to login...");
@@ -84,8 +90,18 @@ const Register = ({ initialIsLogin = true }: RegisterProps) => {
         }, 2000);
       }
     } catch (error: any) {
-      const message =
-        error.response?.data?.message || "Something went wrong. Try again.";
+      console.error("Auth Error:", error.response?.data);
+      const errorData = error.response?.data;
+      let message = "Something went wrong. Try again.";
+
+      if (errorData) {
+        if (typeof errorData.message === 'string') {
+          message = errorData.message;
+        } else if (Array.isArray(errorData.message)) {
+          message = errorData.message.join(', ');
+        }
+      }
+
       toast.error(message);
     } finally {
       setLoading(false);

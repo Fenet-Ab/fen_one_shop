@@ -1,7 +1,9 @@
 import { Controller, Get, Put, Body, Req, UseGuards } from '@nestjs/common';
 import { ProfileService } from './profile.service';
 import { JwtGuard } from '../auth/guards/jwt.guard';
-
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { Delete } from '@nestjs/common';
 
 
@@ -24,6 +26,13 @@ export class ProfileController {
     @Delete()
     deleteProfile(@Req() req: any) {
         return this.profileService.deleteProfile(req.user.userId);
+    }
+
+    @UseGuards(JwtGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    @Get('all')
+    getAllUsers() {
+        return this.profileService.getAllUsers();
     }
 
 }

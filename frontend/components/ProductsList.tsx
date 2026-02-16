@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Edit2, Trash2, Eye, ChevronRight } from "lucide-react";
+import { Edit2, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ProductModal from "./ProductModal";
 
@@ -15,12 +15,17 @@ interface Material {
     title: string;
     description: string;
     imageUrl: string;
+    price: number;
     categoryId: string;
     category?: Category;
     createdAt?: string;
 }
 
-export default function ProductsList() {
+interface ProductsListProps {
+    searchQuery?: string;
+}
+
+export default function ProductsList({ searchQuery = "" }: ProductsListProps) {
     const router = useRouter();
     const [materials, setMaterials] = useState<Material[]>([]);
     const [recentMaterials, setRecentMaterials] = useState<Material[]>([]);
@@ -33,20 +38,28 @@ export default function ProductsList() {
         fetchMaterials();
     }, []);
 
+    useEffect(() => {
+        const filtered = materials.filter(m =>
+            m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            m.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            m.category?.name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        const sorted = [...filtered].sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+        });
+
+        setRecentMaterials(sorted.slice(0, 4));
+    }, [searchQuery, materials]);
+
     const fetchMaterials = async () => {
         try {
             const response = await fetch('http://localhost:5000/api/material');
             if (response.ok) {
                 const data = await response.json();
                 setMaterials(data);
-
-                // Get only the 4 most recent products
-                const sorted = [...data].sort((a, b) => {
-                    const dateA = new Date(a.createdAt || 0).getTime();
-                    const dateB = new Date(b.createdAt || 0).getTime();
-                    return dateB - dateA; // Most recent first
-                });
-                setRecentMaterials(sorted.slice(0, 4));
             }
         } catch (err) {
             console.error('Failed to fetch materials:', err);
@@ -131,6 +144,11 @@ export default function ProductsList() {
                                         )}
                                     </div>
                                     <p className="text-gray-400 text-sm line-clamp-2 mb-4">{material.description}</p>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <span className="text-xl font-bold text-white">
+                                            ETB {typeof material.price === 'number' ? material.price.toLocaleString() : '0.00'}
+                                        </span>
+                                    </div>
                                     <div className="flex items-center justify-between pt-4 border-t border-gray-800">
                                         <span className="text-xs text-gray-600">
                                             {material.createdAt ? new Date(material.createdAt).toLocaleDateString() : 'N/A'}

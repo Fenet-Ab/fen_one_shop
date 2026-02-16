@@ -1,59 +1,83 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import CategorySection from "./components/Category/CategorySection";
 import Hero from "./components/Hero/Hero";
 import { ChevronDown } from "lucide-react";
-const dummyProducts = [
-  {
-    id: "1",
-    name: "Designer Laptop",
-    price: 85000,
-    image: "/hero-1.png",
-    brand: "FenStore Pro"
-  },
-  {
-    id: "2",
-    name: "Premium Headphones",
-    price: 3500,
-    image: "/hero-1.png",
-    brand: "FenStore Audio"
-  },
-  {
-    id: "3",
-    name: "Luxury Handbag",
-    price: 12000,
-    image: "/hero-2.png",
-    brand: "FenStore Fashion"
-  },
-  {
-    id: "4",
-    name: "Designer Watch",
-    price: 4500,
-    image: "/hero-2.png",
-    brand: "FenStore Luxe"
-  },
-  {
-    id: "5",
-    name: "Smart Home Hub",
-    price: 5000,
-    image: "/hero-3.png",
-    brand: "FenStore Life"
-  },
-  {
-    id: "6",
-    name: "Premium Stationery",
-    price: 600,
-    image: "/hero-3.png",
-    brand: "FenStore Life"
-  },
-];
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Material {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  price: number;
+  category: Category;
+  createdAt: string;
+  averageRating?: number;
+  ratingCount?: number;
+}
 
 export default function Home() {
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMaterials = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/material');
+        const data = await response.json();
+        setMaterials(data);
+      } catch (error) {
+        console.error('Error fetching materials:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMaterials();
+  }, []);
+
   const scrollToContent = () => {
-    window.scrollTo({
-      top: window.innerHeight * 0.8,
-      behavior: 'smooth'
-    });
+    const content = document.getElementById('featured-sections');
+    if (content) {
+      content.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      window.scrollTo({
+        top: window.innerHeight * 0.8,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const getRecentProductsByCategory = (categoryName: string) => {
+    return materials
+      .filter((item) => {
+        const catName = item.category?.name?.toLowerCase();
+        const target = categoryName.toLowerCase();
+        // specific check for clothes/clothing
+        if ((target === 'clothing' || target === 'clothes') && (catName === 'clothing' || catName === 'clothes')) {
+          return true;
+        }
+        return catName === target;
+      })
+      // Assuming the backend returns them in some order, but let's sort by createdAt desc just in case
+      // If createdAt is ISO string
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 4)
+      .map(item => ({
+        id: item.id,
+        name: item.title,
+        price: item.price,
+        image: item.imageUrl,
+        brand: `FenStore ${categoryName}`,
+        averageRating: item.averageRating || 0,
+        ratingCount: item.ratingCount || 0,
+      }));
   };
 
   return (
@@ -78,15 +102,20 @@ export default function Home() {
       </div>
 
       {/* Featured Sections */}
-      <CategorySection title="Clothing" products={dummyProducts} />
-      <CategorySection title="Electronics" products={dummyProducts} />
-      <CategorySection title="Shoes" products={dummyProducts} />
-      <CategorySection title="Accessories" products={dummyProducts} />
-
-
-
-
-
+      <div id="featured-sections">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#D4AF37]"></div>
+          </div>
+        ) : (
+          <>
+            <CategorySection title="Clothing" products={getRecentProductsByCategory('Clothing')} />
+            <CategorySection title="Electronics" products={getRecentProductsByCategory('Electronics')} />
+            <CategorySection title="Shoes" products={getRecentProductsByCategory('Shoes')} />
+            <CategorySection title="Accessories" products={getRecentProductsByCategory('Accessories')} />
+          </>
+        )}
+      </div>
     </main>
   );
 }

@@ -1,9 +1,232 @@
-import Cart from "@/app/components/Cart/Cart";
+"use client";
+
+import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import Link from "next/link";
+import { Trash2, Plus, Minus, ShoppingBag, ArrowRight, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
 export default function CartPage() {
+    const { cart, loading, addToCart, removeFromCart, deleteFromCart } = useCart();
+    const { isLoggedIn } = useAuth();
+    const [checkingOut, setCheckingOut] = useState(false);
+    const router = useRouter();
+
+    const totalPrice = cart?.items.reduce((acc, item) => acc + (item.material.price * item.quantity), 0) || 0;
+
+    const handleCheckout = async () => {
+        if (!cart || cart.items.length === 0) {
+            toast.error("Your cart is empty");
+            return;
+        }
+
+        setCheckingOut(true);
+        const checkoutToast = toast.loading("Processing checkout...");
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch("http://localhost:5000/api/order/checkout", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const order = await response.json();
+                toast.update(checkoutToast, { render: "Order created! Initializing payment...", isLoading: true });
+
+                // Initialize payment
+                const userEmail = localStorage.getItem("email");
+                const paymentResponse = await fetch("http://localhost:5000/api/payment/initialize", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        order: order,
+                        user: { email: userEmail || "customer@fenstore.com" }
+                    }),
+                });
+
+                if (paymentResponse.ok) {
+                    const paymentData = await paymentResponse.json();
+                    if (paymentData.status === "success" && paymentData.data.checkout_url) {
+                        toast.update(checkoutToast, { render: "Redirecting to payment...", type: "success", isLoading: false, autoClose: 1000 });
+                        setTimeout(() => {
+                            window.location.href = paymentData.data.checkout_url;
+                        }, 1000);
+                    } else {
+                        toast.update(checkoutToast, { render: `Payment error: ${paymentData.message || "Failed"}`, type: "error", isLoading: false, autoClose: 3000 });
+                    }
+                } else {
+                    const errorData = await paymentResponse.json();
+                    toast.update(checkoutToast, { render: `Payment initialization failed: ${errorData.message || "Error"}`, type: "error", isLoading: false, autoClose: 3000 });
+                }
+            } else {
+                const errorData = await response.json();
+                toast.update(checkoutToast, { render: `Checkout failed: ${errorData.message || "Check your cart"}`, type: "error", isLoading: false, autoClose: 3000 });
+            }
+        } catch (error) {
+            console.error("Checkout error:", error);
+            toast.update(checkoutToast, { render: "An unexpected network error occurred.", type: "error", isLoading: false, autoClose: 3000 });
+        } finally {
+            setCheckingOut(false);
+        }
+    };
+
+    if (!isLoggedIn) {
+        return (
+            <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+                <div className="bg-gray-50 p-12 rounded-[3rem] text-center max-w-md w-full border border-gray-100 shadow-sm">
+                    <div className="w-20 h-20 bg-white border border-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-sm">
+                        <ShoppingBag className="w-10 h-10 text-[#D4AF37]" />
+                    </div>
+                    <h1 className="text-3xl font-black text-[#1A1A1A] mb-4 italic italic tracking-tighter">Your Sanctuary is Empty</h1>
+                    <p className="text-gray-500 mb-8 font-medium">Please login to access your curated collection.</p>
+                    <Link
+                        href="/login"
+                        className="block w-full bg-[#1A1A1A] text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-[#D4AF37] transition-all shadow-xl"
+                    >
+                        Login to FenStore
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-white flex justify-center items-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#D4AF37]"></div>
+            </div>
+        );
+    }
+
+    if (!cart || cart.items.length === 0) {
+        return (
+            <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+                <div className="bg-gray-50 p-12 rounded-[3rem] text-center max-w-md w-full border border-gray-100 shadow-sm">
+                    <div className="w-20 h-20 bg-white border border-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-sm">
+                        <ShoppingBag className="w-10 h-10 text-gray-300" />
+                    </div>
+                    <h1 className="text-3xl font-black text-[#1A1A1A] mb-4 italic italic tracking-tighter">Empty Collection</h1>
+                    <p className="text-gray-500 mb-8 font-medium">Your shopping cart is currently empty. Discover our latest arrivals.</p>
+                    <Link
+                        href="/"
+                        className="block w-full bg-[#1A1A1A] text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-[#D4AF37] transition-all shadow-xl"
+                    >
+                        Explore Collection
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen pt-20">
-            <Cart />
+        <div className="min-h-screen bg-[#FBFBFB] py-12 lg:py-20">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex flex-col lg:flex-row gap-12 items-start">
+                    {/* Cart Items */}
+                    <div className="flex-1 space-y-6 w-full">
+                        <div className="flex items-center justify-between mb-8">
+                            <h1 className="text-4xl font-black text-[#1A1A1A] italic tracking-tighter">Shopping Sanctuary</h1>
+                            <span className="bg-white px-4 py-2 rounded-full border border-gray-100 text-xs font-black uppercase tracking-[0.2em] text-[#D4AF37] shadow-sm">
+                                {cart.items.length} Items
+                            </span>
+                        </div>
+
+                        <div className="space-y-4">
+                            {cart.items.map((item) => (
+                                <div key={item.id} className="bg-white p-6 rounded-[2rem] flex flex-col sm:flex-row items-center gap-6 border border-gray-50 shadow-sm hover:shadow-md transition-shadow group">
+                                    <div className="w-32 h-40 bg-[#FBFBFB] rounded-2xl overflow-hidden flex-shrink-0 border border-transparent group-hover:border-gray-100 transition-colors">
+                                        <img
+                                            src={item.material.imageUrl}
+                                            alt={item.material.title}
+                                            className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-700"
+                                        />
+                                    </div>
+                                    <div className="flex-1 space-y-2 text-center sm:text-left">
+                                        <p className="text-[#D4AF37] text-[10px] font-black uppercase tracking-[0.3em]">{item.material.category?.name || 'Exclusive'}</p>
+                                        <h3 className="text-xl font-black text-[#1A1A1A]">{item.material.title}</h3>
+                                        <p className="text-lg font-bold text-gray-900">{item.material.price.toLocaleString()} <span className="text-xs text-[#D4AF37]">ETB</span></p>
+                                    </div>
+                                    <div className="flex items-center gap-4 bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                                        <button
+                                            onClick={() => removeFromCart(item.material.id)}
+                                            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400 hover:text-[#D4AF37] hover:shadow-sm transition-all"
+                                        >
+                                            <Minus className="w-4 h-4" />
+                                        </button>
+                                        <span className="w-8 text-center font-black text-[#1A1A1A]">{item.quantity}</span>
+                                        <button
+                                            onClick={() => addToCart(item.material.id)}
+                                            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400 hover:text-[#D4AF37] hover:shadow-sm transition-all"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    <button
+                                        onClick={() => deleteFromCart(item.material.id)}
+                                        className="p-4 text-gray-300 hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Summary Card */}
+                    <div className="w-full lg:w-96 sticky top-8">
+                        <div className="bg-[#1A1A1A] p-8 rounded-[3rem] text-white shadow-2xl space-y-8">
+                            <h2 className="text-2xl font-black italic tracking-tighter">Order Summary</h2>
+
+                            <div className="space-y-4">
+                                <div className="flex justify-between text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+                                    <span>Subtotal</span>
+                                    <span>{totalPrice.toLocaleString()} ETB</span>
+                                </div>
+                                <div className="flex justify-between text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+                                    <span>Shipping</span>
+                                    <span className="text-[#D4AF37]">Free</span>
+                                </div>
+                                <div className="pt-4 border-t border-white/10 flex justify-between items-end">
+                                    <div>
+                                        <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mb-1">Total Amount</p>
+                                        <p className="text-3xl font-black">{totalPrice.toLocaleString()} <span className="text-sm font-bold text-[#D4AF37]">ETB</span></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleCheckout}
+                                disabled={checkingOut}
+                                className="w-full bg-[#D4AF37] text-[#1A1A1A] py-5 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-white transition-all transform active:scale-95 disabled:opacity-50"
+                            >
+                                {checkingOut ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <>
+                                        Secure Checkout
+                                        <ArrowRight className="w-5 h-5" />
+                                    </>
+                                )}
+                            </button>
+
+                            <div className="space-y-4 pt-4">
+                                <p className="text-[10px] text-center text-gray-500 font-bold uppercase tracking-[0.2em]">Secure Payments Powered by Chapa</p>
+                                <div className="flex justify-center gap-4 opacity-30 grayscale contrast-125">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" className="h-4" alt="Visa" />
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" className="h-4" alt="Mastercard" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

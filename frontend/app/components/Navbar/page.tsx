@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ShoppingCart, Menu, X, User, LogOut, Settings } from "lucide-react";
+import { ShoppingCart, Menu, X, User, LogOut, Settings, Package } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext";
+import { useCart } from "@/app/context/CartContext";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,7 +15,10 @@ export default function Navbar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { isLoggedIn, user, logout } = useAuth();
-  const cartCount = 2;
+  const { cart } = useCart();
+
+  const cartCount = cart?.items.reduce((acc, item) => acc + item.quantity, 0) || 0;
+  console.log("Navbar - Cart state:", cart, "Count:", cartCount);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -118,6 +122,15 @@ export default function Navbar() {
                       <User className="w-4 h-4" />
                       <span>My Profile</span>
                     </button>
+
+                    <Link
+                      href="/orders"
+                      className="flex items-center space-x-3 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:text-[#D4AF37] transition-colors"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      <Package className="w-4 h-4" />
+                      <span>My Orders</span>
+                    </Link>
 
                     <Link
                       href={user?.role === "admin" ? "/Admin" : "/User"}

@@ -12,6 +12,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model User {
   id        String   @id @default(uuid())
   name      String
@@ -19,12 +20,16 @@ model User {
   password  String
   createdAt DateTime @default(now())
   role      Role     @default(USER)
+  carts     Cart[]
+  orders    Order[]
+  ratings   Rating[]
 }
 
 enum Role {
   USER
   ADMIN
 }
+
 model Category {
   id        String     @id @default(uuid())
   name      String     @unique
@@ -32,12 +37,72 @@ model Category {
 }
 
 model Material {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   title       String
   description String
   imageUrl    String
+  price       Float       @default(0)
   categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
-  createdAt   DateTime @default(now())
+  category    Category    @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime    @default(now())
+  averageRating Float?    @default(0) // Cache for average rating
+  ratingCount   Int       @default(0) // Total number of ratings
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  ratings     Rating[]
 }
 
+model Cart {
+  id     String     @id @default(uuid())
+  userId String
+  user   User       @relation(fields: [userId], references: [id])
+  items  CartItem[]
+}
+
+model CartItem {
+  id         String @id @default(uuid())
+  cartId     String
+  materialId String
+  quantity   Int    @default(1)
+
+  cart     Cart     @relation(fields: [cartId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+}
+
+model Order {
+  id             String   @id @default(uuid())
+  userId         String
+  totalPrice     Float
+  paymentStatus  String   @default("PENDING")
+  deliveryStatus String   @default("NOT_DELIVERED")
+  txRef          String?
+  createdAt      DateTime @default(now())
+
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+}
+
+model OrderItem {
+  id         String @id @default(uuid())
+  orderId    String
+  materialId String
+  quantity   Int
+  price      Float
+
+  order    Order    @relation(fields: [orderId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+}
+model Rating {
+  id         String   @id @default(uuid())
+  userId     String
+  materialId String
+  value      Int      // 1 to 5
+  comment    String?  // Optional review comment
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+
+  @@unique([userId, materialId]) // one rating per user per product
+}

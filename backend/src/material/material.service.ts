@@ -43,7 +43,7 @@ export class MaterialService {
       .from('materials')
       .getPublicUrl(fileName);
 
-    return data.publicUrl;
+    return data;
   }
   async createMaterial(file: Express.Multer.File, body: any) {
     const imageUrl = await this.uploadImage(file);
@@ -53,7 +53,8 @@ export class MaterialService {
         title: body.title,
         description: body.description,
         categoryId: body.categoryId,
-        imageUrl,
+        price: parseFloat(body.price || '0'),
+        imageUrl: imageUrl.publicUrl,
       },
     });
   }
@@ -62,11 +63,12 @@ export class MaterialService {
       title: body.title,
       description: body.description,
       categoryId: body.categoryId,
+      price: parseFloat(body.price || '0'),
     };
 
     if (file) {
       const imageUrl = await this.uploadImage(file);
-      updateData.imageUrl = imageUrl;
+      updateData.imageUrl = imageUrl.publicUrl;
     }
 
     return this.prisma.material.update({

@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { PlusIcon, Search } from "lucide-react";
+import { Plus as PlusIcon, Loader2 } from "lucide-react";
+import { useCart } from "@/app/context/CartContext";
+import { useState } from "react";
+import StarRating from "@/app/components/StarRating/StarRating";
 
 interface ProductCardProps {
     id: string;
@@ -7,6 +10,8 @@ interface ProductCardProps {
     price: number;
     image: string;
     brand?: string;
+    averageRating?: number;
+    ratingCount?: number;
 }
 
 export default function ProductCard({
@@ -15,7 +20,18 @@ export default function ProductCard({
     price,
     image,
     brand = "FenStore Premium",
+    averageRating = 0,
+    ratingCount = 0,
 }: ProductCardProps) {
+    const { addToCart } = useCart();
+    const [adding, setAdding] = useState(false);
+
+    const handleAddToCart = async () => {
+        setAdding(true);
+        await addToCart(id);
+        setAdding(false);
+    };
+
     return (
         <div className="group flex flex-col items-center text-center bg-transparent transition-all duration-500 h-full">
             {/* Image Container - Sharp Rectangle Sizing */}
@@ -28,8 +44,12 @@ export default function ProductCard({
 
                 {/* Hover Quick Actions Overlay - Rectangular Buttons */}
                 <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-[1px]">
-                    <button className="bg-[#1A1A1A] text-white p-4 transition-all duration-500 hover:bg-[#D4AF37] shadow-xl">
-                        <PlusIcon className="w-6 h-6" />
+                    <button
+                        onClick={handleAddToCart}
+                        disabled={adding}
+                        className="bg-[#1A1A1A] text-white p-4 transition-all duration-500 hover:bg-[#D4AF37] shadow-xl disabled:opacity-50"
+                    >
+                        {adding ? <Loader2 className="w-6 h-6 animate-spin" /> : <PlusIcon className="w-6 h-6" />}
                     </button>
                     <Link
                         href={`/products/${id}`}
@@ -50,6 +70,17 @@ export default function ProductCard({
                         {brand}
                     </p>
                 </div>
+
+                {/* Star Rating */}
+                <div className="py-1.5 flex justify-center">
+                    <StarRating
+                        rating={averageRating}
+                        totalRatings={ratingCount}
+                        size="sm"
+                        showCount={true}
+                    />
+                </div>
+
                 <p className="text-[14px] font-bold text-[#1A1A1A] mt-2">
                     {price.toLocaleString()} <span className="text-[9px] font-medium text-gray-400">ETB</span>
                 </p>
@@ -59,6 +90,3 @@ export default function ProductCard({
 
     );
 }
-
-
-

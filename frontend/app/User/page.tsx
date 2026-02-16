@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     User as UserIcon,
     ShoppingBag,
@@ -13,33 +13,138 @@ import {
     Bell,
     ChevronRight,
     Star,
-    Clock,
-    ExternalLink,
     Zap,
-    TrendingUp,
     ShieldCheck,
     Wallet,
     Menu,
     X,
-    Search
+    Search,
+    Trash2,
+    Loader2
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
+import { toast } from "react-toastify";
+
+// Modern Modal Component
+const Modal = ({ isOpen, onClose, onConfirm, title, message, isLoading }: any) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
+            <div className="bg-white rounded-[2.5rem] w-full max-w-md relative z-10 overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="p-10 text-center">
+                    <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-500">
+                        <Trash2 className="w-10 h-10" />
+                    </div>
+                    <h3 className="text-2xl font-black italic tracking-tight text-[#1A1A1A] mb-4">{title}</h3>
+                    <p className="text-gray-500 font-medium mb-10 leading-relaxed">{message}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                        <button
+                            onClick={onClose}
+                            className="bg-gray-100 text-gray-400 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-gray-200 transition-all"
+                        >
+                            Retreat
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            disabled={isLoading}
+                            className="bg-red-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-red-600 shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2"
+                        >
+                            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Expunge"}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function UserDashboard() {
     const [activeTab, setActiveTab] = useState("overview");
     const [isSidebarOpen, setSidebarOpen] = useState(true);
-    const { logout } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [userData, setUserData] = useState<any>(null);
+    const [orders, setOrders] = useState<any[]>([]);
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, orderId: "" });
+    const [deleting, setDeleting] = useState(false);
+    const { logout, isLoggedIn } = useAuth();
     const router = useRouter();
 
-    const user = {
-        name: "Abebe Fenet",
-        email: "abebe@example.com",
-        memberSince: "May 2024",
-        avatar: "AF",
-        loyaltyPoints: 1250,
-        tier: "Gold Member",
-        balance: "$1,240.00"
+    const handleDeleteOrder = async () => {
+        if (!deleteModal.orderId) return;
+        setDeleting(true);
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch(`http://localhost:5000/api/order/${deleteModal.orderId}`, {
+                method: "DELETE",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                toast.success("Order removed successfully");
+                setOrders(orders.filter(o => o.id !== deleteModal.orderId));
+                setDeleteModal({ isOpen: false, orderId: "" });
+            } else {
+                toast.error("Failed to remove order");
+            }
+        } catch (error) {
+            toast.error("Network error");
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!isLoggedIn) {
+                // If not logged in, we check local storage just in case AuthContext hasn't updated yet
+                const token = localStorage.getItem("token");
+                if (!token) {
+                    router.push("/login");
+                    return;
+                }
+            }
+
+            try {
+                const token = localStorage.getItem("token");
+                const headers = { Authorization: `Bearer ${token}` };
+
+                // Fetch Profile
+                const profileRes = await fetch("http://localhost:5000/api/profile", { headers });
+                if (profileRes.ok) {
+                    const profile = await profileRes.json();
+                    setUserData(profile);
+                }
+
+                // Fetch Orders
+                const ordersRes = await fetch("http://localhost:5000/api/order/all", { headers });
+                if (ordersRes.ok) {
+                    const ordersList = await ordersRes.json();
+                    setOrders(ordersList);
+                }
+            } catch (error) {
+                console.error("Error fetching dashboard data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [isLoggedIn, router]);
+
+    const stats = {
+        activeOrders: orders.filter(o => o.paymentStatus !== "PAID" || o.deliveryStatus === "NOT_DELIVERED").length,
+        totalAcquisitions: orders.length,
+        totalSpent: orders.reduce((acc, o) => acc + o.totalPrice, 0),
+        loyaltyPoints: Math.floor(orders.reduce((acc, o) => acc + o.totalPrice, 0) / 10),
+    };
+
+    const getAvatar = (name: string) => {
+        if (!name) return "U";
+        return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
     };
 
     const menuItems = [
@@ -51,15 +156,26 @@ export default function UserDashboard() {
         { id: "settings", label: "Account", icon: <Settings className="w-5 h-5" /> },
     ];
 
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#FDFCFB] flex justify-center items-center">
+                <div className="relative">
+                    <div className="w-16 h-16 border-4 border-[#D4AF37]/20 border-t-[#D4AF37] rounded-full animate-spin"></div>
+                    <div className="mt-4 text-[#D4AF37] font-black italic animate-pulse">Loading Dossier...</div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex h-screen bg-[#FDFCFB] text-[#1A1A1A] font-sans overflow-hidden">
             {/* Ambient Background Elements */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-30">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#D4AF37]/10 rounded-full blur-[120px] animate-pulse"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D4AF37]/5 rounded-full blur-[120px] animation-delay-2000"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#D4AF37]/5 rounded-full blur-[120px]"></div>
             </div>
 
-            {/* Sidebar - Same structure as Admin */}
+            {/* Sidebar */}
             <aside
                 className={`${isSidebarOpen ? "w-80" : "w-24"} bg-[#0F0F0F] text-white transition-all duration-500 flex flex-col z-30 relative shadow-[10px_0_60px_rgba(0,0,0,0.1)]`}
             >
@@ -88,7 +204,9 @@ export default function UserDashboard() {
                         <button
                             key={item.id}
                             onClick={() => {
-                                if (item.id === "settings") {
+                                if (item.id === "orders") {
+                                    router.push("/orders");
+                                } else if (item.id === "settings") {
                                     router.push("/Profile");
                                 } else {
                                     setActiveTab(item.id);
@@ -118,15 +236,15 @@ export default function UserDashboard() {
                         <div className="relative group/avatar">
                             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#D4AF37] to-[#FFD700] p-0.5 shadow-lg group-hover/avatar:scale-110 transition-transform duration-300">
                                 <div className="w-full h-full rounded-[0.9rem] bg-[#0F0F0F] flex items-center justify-center">
-                                    <span className="text-sm font-black text-[#D4AF37]">{user.avatar}</span>
+                                    <span className="text-sm font-black text-[#D4AF37]">{getAvatar(userData?.name)}</span>
                                 </div>
                             </div>
                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0F0F0F]"></div>
                         </div>
                         {isSidebarOpen && (
                             <div className="flex-1 flex flex-col min-w-0">
-                                <span className="text-sm font-bold truncate text-white uppercase italic">{user.name}</span>
-                                <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">{user.tier}</span>
+                                <span className="text-sm font-bold truncate text-white uppercase italic">{userData?.name || "Member"}</span>
+                                <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">{stats.totalSpent > 10000 ? "Platinum" : stats.totalSpent > 5000 ? "Gold" : "Silver"} Tier</span>
                             </div>
                         )}
                     </div>
@@ -144,10 +262,9 @@ export default function UserDashboard() {
 
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col overflow-hidden relative">
-                {/* Header - Similar to Admin */}
+                {/* Header */}
                 <header className="h-24 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-4 md:px-8 flex items-center justify-between z-20">
                     <div className="flex items-center gap-4 md:gap-8 flex-1">
-                        {/* Toggle for mobile/tablet if sidebar is overlay (optional, but good for UX) */}
                         <button
                             onClick={() => setSidebarOpen(!isSidebarOpen)}
                             className="md:hidden p-2 rounded-xl bg-gray-50 text-gray-600"
@@ -170,12 +287,12 @@ export default function UserDashboard() {
                         <div className="flex items-center bg-gray-50 rounded-2xl p-1 border border-gray-100">
                             <div className="px-3 md:px-4 py-2 flex items-center gap-2">
                                 <Wallet className="w-4 h-4 text-[#D4AF37]" />
-                                <span className="text-xs md:text-sm font-black italic hidden sm:inline">{user.balance}</span>
+                                <span className="text-xs md:text-sm font-black italic hidden sm:inline">{stats.totalSpent.toLocaleString()} ETB</span>
                             </div>
                             <div className="h-4 w-px bg-gray-200"></div>
                             <div className="px-3 md:px-4 py-2 flex items-center gap-2">
                                 <Zap className="w-4 h-4 text-[#D4AF37] fill-[#D4AF37]" />
-                                <span className="text-xs md:text-sm font-black italic hidden sm:inline">{user.loyaltyPoints}</span>
+                                <span className="text-xs md:text-sm font-black italic hidden sm:inline">{stats.loyaltyPoints}</span>
                             </div>
                         </div>
 
@@ -201,38 +318,35 @@ export default function UserDashboard() {
                                     <h1 className="text-5xl font-black tracking-tighter text-[#1A1A1A] italic">
                                         The <span className="text-[#D4AF37]">Dossier</span>
                                     </h1>
-                                    <p className="text-gray-400 font-medium text-lg mt-2">Personal records and luxury acquisitions overview.</p>
+                                    <p className="text-gray-400 font-medium text-lg mt-2">Welcome back, {userData?.name?.split(" ")[0] || "Member"}. Overviewing your luxury records.</p>
                                 </div>
-                                <div className="flex space-x-4">
-                                    <button className="px-6 py-3.5 bg-white border border-gray-100 rounded-2xl font-bold shadow-sm hover:shadow-xl transition-all">Download Report</button>
-                                    <button className="px-6 py-3.5 bg-[#0F0F0F] text-white rounded-2xl font-black italic tracking-tight shadow-xl hover:shadow-[#D4AF37]/10 hover:bg-[#D4AF37] hover:text-black transition-all">Express Service</button>
-                                </div>
+
                             </div>
 
                             {/* Impact Stats */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                                 <StatCardMini
                                     title="Active Orders"
-                                    value="03"
+                                    value={stats.activeOrders.toString().padStart(2, '0')}
                                     icon={<Package className="w-5 h-5" />}
                                     color="gold"
                                 />
                                 <StatCardMini
-                                    title="Saved Items"
-                                    value="12"
-                                    icon={<Heart className="w-5 h-5" />}
+                                    title="Loyalty Points"
+                                    value={stats.loyaltyPoints >= 1000 ? `${(stats.loyaltyPoints / 1000).toFixed(1)}k` : stats.loyaltyPoints.toString()}
+                                    icon={<Zap className="w-5 h-5" />}
                                     color="dark"
                                 />
                                 <StatCardMini
                                     title="Acquisitions"
-                                    value="48"
+                                    value={stats.totalAcquisitions.toString().padStart(2, '0')}
                                     icon={<ShoppingBag className="w-5 h-5" />}
                                     color="dark"
                                 />
                                 <StatCardMini
-                                    title="Tier Points"
-                                    value="1.2k"
-                                    icon={<Star className="w-5 h-5" />}
+                                    title="Total Spent"
+                                    value={stats.totalSpent >= 1000 ? `${(stats.totalSpent / 1000).toFixed(1)}k` : stats.totalSpent.toString()}
+                                    icon={<Wallet className="w-5 h-5" />}
                                     color="gold"
                                 />
                             </div>
@@ -242,35 +356,59 @@ export default function UserDashboard() {
                                 <div className="lg:col-span-2 bg-white/50 backdrop-blur-xl rounded-[3rem] border border-gray-100 shadow-[0_40px_100px_rgba(0,0,0,0.03)] overflow-hidden">
                                     <div className="p-8 border-b border-gray-50 flex items-center justify-between">
                                         <h2 className="text-2xl font-black italic tracking-tight">Recent Acquisitions</h2>
-                                        <button className="text-[#D4AF37] text-sm font-black uppercase tracking-widest hover:underline flex items-center">
+                                        <button
+                                            onClick={() => router.push("/orders")}
+                                            className="text-[#D4AF37] text-sm font-black uppercase tracking-widest hover:underline flex items-center"
+                                        >
                                             View Archive <ChevronRight className="w-4 h-4 ml-1" />
                                         </button>
                                     </div>
                                     <div className="p-8 space-y-4">
-                                        {[
-                                            { id: "#FEN-9921", date: "Feb 10, 2024", total: "$245.00", status: "Delivered", items: 3 },
-                                            { id: "#FEN-9842", date: "Jan 22, 2024", total: "$120.50", status: "In Transit", items: 1 },
-                                            { id: "#FEN-9710", date: "Jan 05, 2024", total: "$89.99", status: "Delivered", items: 2 },
-                                        ].map((order, i) => (
-                                            <div key={i} className="group bg-white p-6 rounded-3xl flex items-center justify-between border border-transparent hover:border-[#D4AF37]/20 hover:shadow-2xl hover:shadow-[#D4AF37]/5 transition-all duration-500">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-[#D4AF37] group-hover:scale-110 transition-transform">
-                                                        <ShoppingBag className="w-7 h-7" />
+                                        {orders.length > 0 ? (
+                                            orders.slice(0, 3).map((order, i) => (
+                                                <div
+                                                    key={i}
+                                                    onClick={() => router.push(`/orders/${order.id}`)}
+                                                    className="group cursor-pointer bg-white p-6 rounded-3xl flex items-center justify-between border border-transparent hover:border-[#D4AF37]/20 hover:shadow-2xl hover:shadow-[#D4AF37]/5 transition-all duration-500"
+                                                >
+                                                    <div className="flex items-center gap-5">
+                                                        <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-[#D4AF37] group-hover:scale-110 transition-transform">
+                                                            <ShoppingBag className="w-7 h-7" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black text-lg italic tracking-tight">Order #{order.id.slice(-6).toUpperCase()}</p>
+                                                            <p className="text-xs font-bold text-gray-400 mt-0.5">
+                                                                {new Date(order.createdAt).toLocaleDateString()} • {order.items?.length || 0} Items
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="font-black text-lg italic tracking-tight">{order.id}</p>
-                                                        <p className="text-xs font-bold text-gray-400 mt-0.5">{order.date} • {order.items} Items</p>
+                                                    <div className="text-right flex items-center gap-4">
+                                                        <div>
+                                                            <p className="font-black text-xl italic">{order.totalPrice.toLocaleString()} ETB</p>
+                                                            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${order.paymentStatus === "PAID" ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
+                                                                }`}>
+                                                                {order.paymentStatus || "PENDING"}
+                                                            </span>
+                                                        </div>
+                                                        {order.paymentStatus !== 'PAID' && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    setDeleteModal({ isOpen: true, orderId: order.id });
+                                                                }}
+                                                                className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all group/trash"
+                                                                title="Remove Order"
+                                                            >
+                                                                <Trash2 className="w-4 h-4 transition-transform group-hover/trash:scale-110" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="font-black text-xl italic">{order.total}</p>
-                                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${order.status === "Delivered" ? "bg-green-100 text-green-600" : "bg-[#0F0F0F] text-white"
-                                                        }`}>
-                                                        {order.status}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-10 text-gray-400 font-bold italic">No acquisitions found.</div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -282,17 +420,27 @@ export default function UserDashboard() {
                                         </div>
                                         <div className="relative z-10">
                                             <h3 className="text-3xl font-black text-white italic leading-tight">Elite <span className="text-[#D4AF37]">Ascension.</span></h3>
-                                            <p className="text-gray-400 text-sm font-medium mt-4 leading-relaxed">You're on the threshold of Platinum status. Re-invent your experience today.</p>
+                                            <p className="text-gray-400 text-sm font-medium mt-4 leading-relaxed">
+                                                Track your journey to the next tier based on your acquisitions.
+                                            </p>
                                             <div className="mt-8 space-y-4">
                                                 <div className="flex justify-between items-end mb-1">
-                                                    <span className="text-[10px] font-black text-[#D4AF37] uppercase tracking-widest">Progress</span>
-                                                    <span className="text-xs font-bold text-white">75%</span>
+                                                    <span className="text-[10px] font-black text-[#D4AF37] uppercase tracking-widest">Progress to Platinum</span>
+                                                    <span className="text-xs font-bold text-white">{Math.min(100, Math.floor((stats.totalSpent / 10000) * 100))}%</span>
                                                 </div>
                                                 <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                                    <div className="h-full w-3/4 bg-[#D4AF37] rounded-full shadow-[0_0_15px_rgba(212,175,55,0.5)]"></div>
+                                                    <div
+                                                        style={{ width: `${Math.min(100, (stats.totalSpent / 10000) * 100)}%` }}
+                                                        className="h-full bg-[#D4AF37] rounded-full shadow-[0_0_15px_rgba(212,175,55,0.5)] transition-all duration-1000"
+                                                    ></div>
                                                 </div>
                                             </div>
-                                            <button className="w-full mt-8 bg-white text-black py-4 rounded-2xl font-black text-sm hover:bg-[#D4AF37] transition-all transform hover:scale-105">View Benefits</button>
+                                            <button
+                                                onClick={() => router.push("/")}
+                                                className="w-full mt-8 bg-white text-black py-4 rounded-2xl font-black text-sm hover:bg-[#D4AF37] transition-all transform hover:scale-105"
+                                            >
+                                                Acquire More
+                                            </button>
                                         </div>
                                     </div>
 
@@ -302,7 +450,7 @@ export default function UserDashboard() {
                                             <ShieldCheck className="w-5 h-5 text-[#D4AF37]" />
                                             <span className="text-xs font-black uppercase tracking-widest">Secured Account</span>
                                         </div>
-                                        <p className="text-sm text-gray-500 font-medium">Your 2FA is active and protecting 4 authorized sessions. Stay vigilant.</p>
+                                        <p className="text-sm text-gray-500 font-medium">Your account is active. Logged in as {userData?.email || "Guest"}.</p>
                                     </div>
                                 </div>
                             </div>
@@ -311,7 +459,7 @@ export default function UserDashboard() {
 
                     {/* Placeholder for other tabs */}
                     {activeTab !== "overview" && (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-20 animate-in zoom-in-95 duration-500">
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-20">
                             <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-gray-200/50 text-[#D4AF37] animate-bounce">
                                 {menuItems.find(m => m.id === activeTab)?.icon}
                             </div>
@@ -327,6 +475,15 @@ export default function UserDashboard() {
                     )}
                 </div>
             </main>
+
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, orderId: "" })}
+                onConfirm={handleDeleteOrder}
+                title="Expunge Order?"
+                message="Are you certain you wish to remove this acquisition from your records? This action cannot be reversed."
+                isLoading={deleting}
+            />
 
             <style jsx global>{`
                 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,800&display=swap');
@@ -353,9 +510,6 @@ export default function UserDashboard() {
                 .custom-scrollbar-main::-webkit-scrollbar-thumb {
                     background: rgba(0,0,0,0.05);
                     border-radius: 10px;
-                }
-                .animation-delay-2000 {
-                    animation-delay: 2s;
                 }
             `}</style>
         </div>

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ProductModal from "@/components/ProductModal";
+import DeleteModal from "@/components/DeleteModal";
 
 interface Category {
     id: string;
@@ -24,6 +25,7 @@ interface Material {
     title: string;
     description: string;
     imageUrl: string;
+    price: number;
     categoryId: string;
     category?: Category;
     createdAt?: string;
@@ -40,6 +42,9 @@ export default function ProductsPage() {
     const [selectedMaterial, setSelectedMaterial] = useState<Material | undefined>();
     const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [materialToDelete, setMaterialToDelete] = useState<Material | null>(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     useEffect(() => {
         fetchMaterials();
@@ -104,14 +109,18 @@ export default function ProductsPage() {
         setIsModalOpen(true);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this product?')) {
-            return;
-        }
+    const handleDeleteClick = (material: Material) => {
+        setMaterialToDelete(material);
+        setIsDeleteModalOpen(true);
+    };
 
+    const confirmDelete = async () => {
+        if (!materialToDelete) return;
+
+        setDeleteLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:5000/api/material/${id}`, {
+            const response = await fetch(`http://localhost:5000/api/material/${materialToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -120,9 +129,13 @@ export default function ProductsPage() {
 
             if (response.ok) {
                 fetchMaterials();
+                setIsDeleteModalOpen(false);
+                setMaterialToDelete(null);
             }
         } catch (err) {
             console.error('Failed to delete material:', err);
+        } finally {
+            setDeleteLoading(false);
         }
     };
 
@@ -229,6 +242,9 @@ export default function ProductsPage() {
                                             Category
                                         </th>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                            Price
+                                        </th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">
                                             Description
                                         </th>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -267,6 +283,11 @@ export default function ProductsPage() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
+                                                <div className="text-white font-medium">
+                                                    ${typeof material.price === 'number' ? material.price.toFixed(2) : '0.00'}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
                                                 <div className="text-gray-400 text-sm line-clamp-2 max-w-md">
                                                     {material.description}
                                                 </div>
@@ -292,7 +313,7 @@ export default function ProductsPage() {
                                                         <Edit2 className="w-4 h-4" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDelete(material.id)}
+                                                        onClick={() => handleDeleteClick(material)}
                                                         className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
                                                         title="Delete"
                                                     >
@@ -319,6 +340,15 @@ export default function ProductsPage() {
                 onSuccess={handleSuccess}
                 mode={modalMode}
                 material={selectedMaterial}
+            />
+
+            <DeleteModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={confirmDelete}
+                title="Delete Product"
+                message={`Are you sure you want to delete "${materialToDelete?.title}"? This action cannot be undone.`}
+                isLoading={deleteLoading}
             />
         </div>
     );
