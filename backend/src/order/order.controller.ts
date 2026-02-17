@@ -10,9 +10,10 @@ export class OrderController {
     constructor(private readonly orderService: OrderService) { }
     @Post("checkout")
     @UseGuards(JwtGuard)
-    checkout(@Req() req) {
+    checkout(@Req() req, @Body("shippingAddress") shippingAddress: string) {
         return this.orderService.createOrderFromCart(
             req.user.userId,
+            shippingAddress
         );
     }
 

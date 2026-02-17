@@ -66,10 +66,59 @@ export default function UserDashboard() {
     const [loading, setLoading] = useState(true);
     const [userData, setUserData] = useState<any>(null);
     const [orders, setOrders] = useState<any[]>([]);
+    const [wishlist, setWishlist] = useState<any[]>([]);
+    const [notifications, setNotifications] = useState<any[]>([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [loadingWishlist, setLoadingWishlist] = useState(false);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, orderId: "" });
     const [deleting, setDeleting] = useState(false);
     const { logout, isLoggedIn } = useAuth();
     const router = useRouter();
+
+    const fetchNotifications = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch("http://localhost:5000/api/notification", {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setNotifications(data);
+            }
+        } catch (error) {
+            console.error("Error fetching notifications:", error);
+        }
+    };
+
+    const markAsRead = async (id: string) => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`http://localhost:5000/api/notification/${id}/read`, {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                setNotifications(notifications.map(n => n.id === id ? { ...n, isRead: true } : n));
+            }
+        } catch (error) {
+            console.error("Error marking notification as read:", error);
+        }
+    };
+
+    const markAllRead = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`http://localhost:5000/api/notification/read-all`, {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+            }
+        } catch (error) {
+            console.error("Error marking all notifications as read:", error);
+        }
+    };
 
     const handleDeleteOrder = async () => {
         if (!deleteModal.orderId) return;
@@ -94,6 +143,24 @@ export default function UserDashboard() {
             toast.error("Network error");
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const fetchWishlist = async () => {
+        setLoadingWishlist(true);
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch("http://localhost:5000/api/like", {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setWishlist(data);
+            }
+        } catch (error) {
+            console.error("Error fetching wishlist:", error);
+        } finally {
+            setLoadingWishlist(false);
         }
     };
 
@@ -125,6 +192,15 @@ export default function UserDashboard() {
                     const ordersList = await ordersRes.json();
                     setOrders(ordersList);
                 }
+
+                // Fetch Wishlist if active tab is wishlist
+                if (activeTab === "wishlist") {
+                    await fetchWishlist();
+                }
+
+                // Fetch Notifications
+                await fetchNotifications();
+
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
             } finally {
@@ -133,7 +209,7 @@ export default function UserDashboard() {
         };
 
         fetchData();
-    }, [isLoggedIn, router]);
+    }, [isLoggedIn, router, activeTab]);
 
     const stats = {
         activeOrders: orders.filter(o => o.paymentStatus !== "PAID" || o.deliveryStatus === "NOT_DELIVERED").length,
@@ -150,9 +226,7 @@ export default function UserDashboard() {
     const menuItems = [
         { id: "overview", label: "Dashboard", icon: <UserIcon className="w-5 h-5" /> },
         { id: "orders", label: "My Orders", icon: <Package className="w-5 h-5" /> },
-        { id: "wishlist", label: "Wishlist", icon: <Heart className="w-5 h-5" /> },
-        { id: "addresses", label: "Shipping", icon: <MapPin className="w-5 h-5" /> },
-        { id: "payments", label: "Payments", icon: <CreditCard className="w-5 h-5" /> },
+        { id: "wishlist", label: "Waitlist", icon: <Heart className="w-5 h-5" /> },
         { id: "settings", label: "Account", icon: <Settings className="w-5 h-5" /> },
     ];
 
@@ -296,15 +370,74 @@ export default function UserDashboard() {
                             </div>
                         </div>
 
-                        <button className="p-3.5 rounded-2xl bg-gray-50 hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 transition-all relative border border-gray-100 group shrink-0">
-                            <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
-                            <span className="absolute top-3.5 right-3.5 w-2 h-2 md:w-2.5 md:h-2.5 bg-[#D4AF37] rounded-full border-2 border-white"></span>
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                className="p-3.5 rounded-2xl bg-gray-50 hover:bg-white hover:shadow-xl hover:shadow-gray-200/50 transition-all relative border border-gray-100 group shrink-0"
+                            >
+                                <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-400 group-hover:text-[#D4AF37] transition-colors" />
+                                {notifications.filter(n => !n.isRead).length > 0 && (
+                                    <span className="absolute top-3.5 right-3.5 w-2 h-2 md:w-2.5 md:h-2.5 bg-[#D4AF37] rounded-full border-2 border-white animate-pulse"></span>
+                                )}
+                            </button>
+
+                            {showNotifications && (
+                                <div className="absolute right-0 mt-4 w-80 md:w-96 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden z-[100] animate-in slide-in-from-top-5 duration-200">
+                                    <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
+                                        <h3 className="text-lg font-black italic tracking-tighter">Notifications</h3>
+                                        <button
+                                            onClick={markAllRead}
+                                            className="text-[10px] font-black uppercase tracking-widest text-[#D4AF37] hover:underline"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
+                                    <div className="max-h-[70vh] overflow-y-auto custom-scrollbar-main">
+                                        {notifications.length > 0 ? (
+                                            notifications.map((n) => (
+                                                <div
+                                                    key={n.id}
+                                                    onClick={() => {
+                                                        markAsRead(n.id);
+                                                        if (n.link) router.push(n.link);
+                                                    }}
+                                                    className={`p-6 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors relative group/noti ${!n.isRead ? "bg-[#D4AF37]/5" : ""}`}
+                                                >
+                                                    {!n.isRead && (
+                                                        <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-[#D4AF37] rounded-full"></div>
+                                                    )}
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <p className={`text-sm font-bold ${!n.isRead ? "text-[#1A1A1A]" : "text-gray-500"}`}>{n.title}</p>
+                                                        <span className="text-[9px] font-medium text-gray-400">{new Date(n.createdAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{n.message}</p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="p-12 text-center">
+                                                <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">
+                                                    <Bell className="w-8 h-8" />
+                                                </div>
+                                                <p className="text-sm font-bold text-gray-400 italic">Disturbance Free...</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-4 bg-gray-50/50 border-t border-gray-50 text-center">
+                                        <button
+                                            onClick={() => setShowNotifications(false)}
+                                            className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-[#1A1A1A] transition-colors"
+                                        >
+                                            Dismiss View
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </header>
 
                 {/* Dashboard Scroll View */}
-                <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar-main">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-10 space-y-10 custom-scrollbar-main pb-32">
                     {activeTab === "overview" && (
                         <>
                             {/* Page Intro */}
@@ -315,7 +448,7 @@ export default function UserDashboard() {
                                             Status: High Priority
                                         </div>
                                     </div>
-                                    <h1 className="text-5xl font-black tracking-tighter text-[#1A1A1A] italic">
+                                    <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-[#1A1A1A] italic">
                                         The <span className="text-[#D4AF37]">Dossier</span>
                                     </h1>
                                     <p className="text-gray-400 font-medium text-lg mt-2">Welcome back, {userData?.name?.split(" ")[0] || "Member"}. Overviewing your luxury records.</p>
@@ -324,7 +457,7 @@ export default function UserDashboard() {
                             </div>
 
                             {/* Impact Stats */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
                                 <StatCardMini
                                     title="Active Orders"
                                     value={stats.activeOrders.toString().padStart(2, '0')}
@@ -369,10 +502,10 @@ export default function UserDashboard() {
                                                 <div
                                                     key={i}
                                                     onClick={() => router.push(`/orders/${order.id}`)}
-                                                    className="group cursor-pointer bg-white p-6 rounded-3xl flex items-center justify-between border border-transparent hover:border-[#D4AF37]/20 hover:shadow-2xl hover:shadow-[#D4AF37]/5 transition-all duration-500"
+                                                    className="group cursor-pointer bg-white p-6 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between border border-transparent hover:border-[#D4AF37]/20 hover:shadow-2xl hover:shadow-[#D4AF37]/5 transition-all duration-500 gap-4"
                                                 >
                                                     <div className="flex items-center gap-5">
-                                                        <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-[#D4AF37] group-hover:scale-110 transition-transform">
+                                                        <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-[#D4AF37] group-hover:scale-110 transition-transform flex-shrink-0">
                                                             <ShoppingBag className="w-7 h-7" />
                                                         </div>
                                                         <div>
@@ -382,7 +515,7 @@ export default function UserDashboard() {
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right flex items-center gap-4">
+                                                    <div className="text-right flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                                                         <div>
                                                             <p className="font-black text-xl italic">{order.totalPrice.toLocaleString()} ETB</p>
                                                             <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${order.paymentStatus === "PAID" ? "bg-green-100 text-green-600" : "bg-amber-100 text-amber-600"
@@ -413,53 +546,74 @@ export default function UserDashboard() {
                                 </div>
 
                                 {/* Promo Sidebar Card */}
-                                <div className="space-y-8">
-                                    <div className="bg-[#0F0F0F] rounded-[3rem] p-8 relative overflow-hidden group shadow-2xl">
-                                        <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4 group-hover:translate-x-0 group-hover:translate-y-0 transition-all duration-1000">
-                                            <Star className="w-40 h-40 text-[#D4AF37] fill-[#D4AF37]" />
-                                        </div>
-                                        <div className="relative z-10">
-                                            <h3 className="text-3xl font-black text-white italic leading-tight">Elite <span className="text-[#D4AF37]">Ascension.</span></h3>
-                                            <p className="text-gray-400 text-sm font-medium mt-4 leading-relaxed">
-                                                Track your journey to the next tier based on your acquisitions.
-                                            </p>
-                                            <div className="mt-8 space-y-4">
-                                                <div className="flex justify-between items-end mb-1">
-                                                    <span className="text-[10px] font-black text-[#D4AF37] uppercase tracking-widest">Progress to Platinum</span>
-                                                    <span className="text-xs font-bold text-white">{Math.min(100, Math.floor((stats.totalSpent / 10000) * 100))}%</span>
-                                                </div>
-                                                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                                    <div
-                                                        style={{ width: `${Math.min(100, (stats.totalSpent / 10000) * 100)}%` }}
-                                                        className="h-full bg-[#D4AF37] rounded-full shadow-[0_0_15px_rgba(212,175,55,0.5)] transition-all duration-1000"
-                                                    ></div>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => router.push("/")}
-                                                className="w-full mt-8 bg-white text-black py-4 rounded-2xl font-black text-sm hover:bg-[#D4AF37] transition-all transform hover:scale-105"
-                                            >
-                                                Acquire More
-                                            </button>
-                                        </div>
-                                    </div>
 
-                                    {/* Quick Security Tip */}
-                                    <div className="bg-[#D4AF37]/5 border border-[#D4AF37]/10 p-8 rounded-[3rem] group hover:bg-[#D4AF37]/10 transition-all">
-                                        <div className="flex items-center space-x-3 mb-4">
-                                            <ShieldCheck className="w-5 h-5 text-[#D4AF37]" />
-                                            <span className="text-xs font-black uppercase tracking-widest">Secured Account</span>
-                                        </div>
-                                        <p className="text-sm text-gray-500 font-medium">Your account is active. Logged in as {userData?.email || "Guest"}.</p>
-                                    </div>
-                                </div>
                             </div>
                         </>
                     )}
 
+                    {activeTab === "wishlist" && (
+                        <div className="space-y-8 pb-10">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="text-4xl font-black italic tracking-tighter text-[#1A1A1A]">Your Wishlist</h1>
+                                    <p className="text-gray-400 font-medium mt-2">Curated selection of your most desired items.</p>
+                                </div>
+                            </div>
+
+                            {loadingWishlist ? (
+                                <div className="flex justify-center py-20">
+                                    <div className="w-12 h-12 border-4 border-[#D4AF37]/20 border-t-[#D4AF37] rounded-full animate-spin"></div>
+                                </div>
+                            ) : wishlist.length === 0 ? (
+                                <div className="text-center py-20 bg-white rounded-[3rem] border border-gray-100">
+                                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-400">
+                                        <Heart className="w-10 h-10" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900">Your wishlist is empty</h3>
+                                    <p className="text-gray-500 mt-2 mb-8">Start adding items you love to your collection.</p>
+                                    <button
+                                        onClick={() => router.push("/")}
+                                        className="px-8 py-3 bg-[#1A1A1A] text-white rounded-xl font-bold hover:bg-[#D4AF37] hover:text-black transition-all"
+                                    >
+                                        Browse Collection
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {wishlist.map((item: any) => (
+                                        <div key={item.id} className="group bg-white rounded-3xl p-4 border border-gray-100 hover:shadow-xl hover:shadow-[#D4AF37]/5 transition-all duration-500">
+                                            <div className="relative aspect-[4/5] overflow-hidden rounded-2xl bg-gray-50 mb-4">
+                                                <img
+                                                    src={item.material.imageUrl}
+                                                    alt={item.material.title}
+                                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                                />
+                                                <div className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur-sm rounded-full pointer-events-none">
+                                                    <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                                                </div>
+                                            </div>
+                                            <div className="px-2 pb-2">
+                                                <h3 className="font-bold text-[#1A1A1A] truncate">{item.material.title}</h3>
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <span className="text-[#D4AF37] font-black">{item.material.price.toLocaleString()} ETB</span>
+                                                    <button
+                                                        onClick={() => router.push(`/products/${item.material.id}`)}
+                                                        className="px-4 py-2 bg-[#1A1A1A] text-white text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-[#D4AF37] hover:text-black transition-colors"
+                                                    >
+                                                        View
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Placeholder for other tabs */}
-                    {activeTab !== "overview" && (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-20">
+                    {activeTab !== "overview" && activeTab !== "wishlist" && (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-20 min-h-[50vh]">
                             <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-gray-200/50 text-[#D4AF37] animate-bounce">
                                 {menuItems.find(m => m.id === activeTab)?.icon}
                             </div>
@@ -474,6 +628,9 @@ export default function UserDashboard() {
                         </div>
                     )}
                 </div>
+
+                {/* Bottom Blur Overlay for better scroll aesthetics */}
+                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#FDFCFB] to-transparent pointer-events-none z-10"></div>
             </main>
 
             <Modal

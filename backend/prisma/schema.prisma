@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,16 +7,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+
+model Notification {
   id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  type      String   // 'ORDER_UPDATE', 'NEW_ORDER'
+  orderId   String?  
+  link      String?  
   createdAt DateTime @default(now())
-  role      Role     @default(USER)
-  carts     Cart[]
-  orders    Order[]
-  ratings   Rating[]
+}
+
+model Order {
+  id             String      @id @default(uuid())
+  userId         String
+  totalPrice     Float
+  shippingAddress String?    // Added shipping address
+  paymentStatus  String      @default("PENDING")
+  deliveryStatus String      @default("NOT_DELIVERED")
+  createdAt      DateTime    @default(now())
+  txRef          String?
+  user           User        @relation(fields: [userId], references: [id])
+  items          OrderItem[]
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password      String
+  createdAt     DateTime       @default(now())
+  role          Role           @default(USER)
+  carts         Cart[]
+  likes         Like[]
+  orders        Order[]
+  ratings       Rating[]
+  notifications Notification[]
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  materialId String
+  quantity   Int
+  price      Float
+  material   Material @relation(fields: [materialId], references: [id])
+  order      Order    @relation(fields: [orderId], references: [id])
+}
+
+model Rating {
+  id         String   @id @default(uuid())
+  userId     String
+  materialId String
+  value      Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  material   Material @relation(fields: [materialId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, materialId])
+}
+
+model Like {
+  id         String   @id @default(uuid())
+  userId     String
+  materialId String
+  createdAt  DateTime @default(now())
+  material   Material @relation(fields: [materialId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, materialId])
 }
 
 enum Role {
@@ -37,20 +95,21 @@ model Category {
 }
 
 model Material {
-  id          String      @id @default(uuid())
-  title       String
-  description String
-  imageUrl    String
-  price       Float       @default(0)
-  categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id])
-  createdAt   DateTime    @default(now())
-  isDeleted   Boolean     @default(false)
-  averageRating Float?    @default(0) // Cache for average rating
-  ratingCount   Int       @default(0) // Total number of ratings
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
-  ratings     Rating[]
+  id            String      @id @default(uuid())
+  title         String
+  description   String
+  imageUrl      String
+  categoryId    String
+  createdAt     DateTime    @default(now())
+  price         Float       @default(0)
+  averageRating Float?      @default(0)
+  ratingCount   Int         @default(0)
+  isDeleted     Boolean     @default(false)
+  cartItems     CartItem[]
+  likes         Like[]
+  category      Category    @relation(fields: [categoryId], references: [id])
+  orderItems    OrderItem[]
+  ratings       Rating[]
 }
 
 model Cart {
@@ -61,49 +120,10 @@ model Cart {
 }
 
 model CartItem {
-  id         String @id @default(uuid())
+  id         String   @id @default(uuid())
   cartId     String
   materialId String
-  quantity   Int    @default(1)
-
-  cart     Cart     @relation(fields: [cartId], references: [id])
-  material Material @relation(fields: [materialId], references: [id])
-}
-
-model Order {
-  id             String   @id @default(uuid())
-  userId         String
-  totalPrice     Float
-  paymentStatus  String   @default("PENDING")
-  deliveryStatus String   @default("NOT_DELIVERED")
-  txRef          String?
-  createdAt      DateTime @default(now())
-
-  user  User        @relation(fields: [userId], references: [id])
-  items OrderItem[]
-}
-
-model OrderItem {
-  id         String @id @default(uuid())
-  orderId    String
-  materialId String
-  quantity   Int
-  price      Float
-
-  order    Order    @relation(fields: [orderId], references: [id])
-  material Material @relation(fields: [materialId], references: [id])
-}
-model Rating {
-  id         String   @id @default(uuid())
-  userId     String
-  materialId String
-  value      Int      // 1 to 5
-  comment    String?  // Optional review comment
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  user     User     @relation(fields: [userId], references: [id])
-  material Material @relation(fields: [materialId], references: [id])
-
-  @@unique([userId, materialId]) // one rating per user per product
+  quantity   Int      @default(1)
+  cart       Cart     @relation(fields: [cartId], references: [id])
+  material   Material @relation(fields: [materialId], references: [id])
 }

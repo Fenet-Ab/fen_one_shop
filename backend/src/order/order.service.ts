@@ -1,10 +1,15 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class OrderService {
-    constructor(private prisma: PrismaService) { }
-    async createOrderFromCart(userId: string) {
+    constructor(
+        private prisma: PrismaService,
+        private notificationService: NotificationService
+    ) { }
+
+    async createOrderFromCart(userId: string, shippingAddress: string) {
 
         // 1️⃣ Find user cart
         const cart = await this.prisma.cart.findFirst({
@@ -33,6 +38,7 @@ export class OrderService {
             data: {
                 userId,
                 totalPrice: total,
+                shippingAddress,
                 items: {
                     create: cart.items.map(item => ({
                         materialId: item.materialId,
@@ -42,7 +48,8 @@ export class OrderService {
                 }
             },
             include: {
-                items: true
+                items: true,
+                user: true
             }
         });
 
@@ -51,7 +58,16 @@ export class OrderService {
             where: { cartId: cart.id },
         });
 
-        // 4️⃣ Return ready order
+        // 4️⃣ Notify Admins
+        await this.notificationService.notifyAdmins(
+            "New Order Received",
+            `User ${order.user.name} has placed a new order #${order.id.slice(0, 8)} worth ${total} ETB.`,
+            "NEW_ORDER",
+            order.id,
+            `/admin/orders/${order.id}`
+        );
+
+        // 5️⃣ Return ready order
         return order;
     }
 
@@ -117,10 +133,23 @@ export class OrderService {
     }
 
     async updateDeliveryStatus(orderId: string, status: string) {
-        return this.prisma.order.update({
+        const order = await this.prisma.order.update({
             where: { id: orderId },
-            data: { deliveryStatus: status }
+            data: { deliveryStatus: status },
+            include: { user: true }
         });
+
+        // Notify User
+        await this.notificationService.create(
+            order.userId,
+            "Order Status Updated",
+            `Your order #${order.id.slice(0, 8)} status has been updated to ${status}.`,
+            "ORDER_UPDATE",
+            order.id,
+            `/orders/${order.id}`
+        );
+
+        return order;
     }
 
     async getMarketShare() {

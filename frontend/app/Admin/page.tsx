@@ -54,8 +54,55 @@ export default function AdminDashboard() {
   const [customersLoading, setCustomersLoading] = useState(false);
   const [marketShare, setMarketShare] = useState<MarketShareItem[]>([]);
   const [marketShareLoading, setMarketShareLoading] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/notification", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/notification/${id}/read`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(notifications.map(n => n.id === id ? { ...n, isRead: true } : n));
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:5000/api/notification/read-all`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      }
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
 
   useEffect(() => {
     // Check if user is authenticated
@@ -70,6 +117,36 @@ export default function AdminDashboard() {
     fetchOrders();
     fetchCustomers();
     fetchMarketShare();
+    fetchNotifications();
+
+    // Poll for notifications every 10 seconds
+    const interval = setInterval(() => {
+      const updateNotis = async () => {
+        try {
+          const t = localStorage.getItem("token");
+          const res = await fetch("http://localhost:5000/api/notification", {
+            headers: { Authorization: `Bearer ${t}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            // If we have more unread notifications than before, show a toast
+            setNotifications(prev => {
+              const prevUnread = prev.filter(n => !n.isRead).length;
+              const nextUnread = data.filter((n: any) => !n.isRead).length;
+              if (nextUnread > prevUnread) {
+                toast.info("🚨 New incoming order or alert!");
+              }
+              return data;
+            });
+          }
+        } catch (e) {
+          console.error("Polling error:", e);
+        }
+      };
+      updateNotis();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleProductSuccess = () => {
@@ -323,10 +400,76 @@ export default function AdminDashboard() {
           </div>
 
           <div className="flex items-center space-x-6">
-            <button className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors relative group">
-              <Bell className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-[#D4AF37] rounded-full border-2 border-[#161616]"></span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 transition-colors relative group"
+              >
+                <Bell className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                {notifications.filter(n => !n.isRead).length > 0 && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-[#D4AF37] rounded-full border-2 border-[#161616] animate-pulse"></span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-4 w-96 bg-[#161616] rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-gray-800 overflow-hidden z-[100] animate-in slide-in-from-top-5 duration-200">
+                  <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-black/20">
+                    <h3 className="text-lg font-bold tracking-tight text-white">System Alerts</h3>
+                    <button
+                      onClick={markAllRead}
+                      className="text-[10px] font-bold uppercase tracking-widest text-[#D4AF37] hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  <div className="max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    {notifications.length > 0 ? (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            markAsRead(n.id);
+                            if (n.link) {
+                              if (n.type === 'NEW_ORDER') {
+                                setActiveSection("orders");
+                                setShowNotifications(false);
+                              } else {
+                                router.push(n.link);
+                              }
+                            }
+                          }}
+                          className={`p-6 border-b border-gray-800/50 hover:bg-white/[0.03] cursor-pointer transition-colors relative group/noti ${!n.isRead ? "bg-[#D4AF37]/5" : ""}`}
+                        >
+                          {!n.isRead && (
+                            <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-[#D4AF37] rounded-full"></div>
+                          )}
+                          <div className="flex justify-between items-start mb-1">
+                            <p className={`text-sm font-bold ${!n.isRead ? "text-white" : "text-gray-400"}`}>{n.title}</p>
+                            <span className="text-[9px] font-medium text-gray-500">{getRelativeTime(n.createdAt)}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{n.message}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-12 text-center">
+                        <div className="w-16 h-16 bg-gray-800/50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-600">
+                          <Bell className="w-8 h-8" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-500 italic">No new alerts detected.</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4 bg-black/20 border-t border-gray-800 text-center">
+                    <button
+                      onClick={() => setShowNotifications(false)}
+                      className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors"
+                    >
+                      Dismiss View
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => setIsProductModalOpen(true)}
               className="flex items-center space-x-2 bg-[#D4AF37] text-black px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#B8860B] transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-[#D4AF37]/20"

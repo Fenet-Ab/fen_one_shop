@@ -10,9 +10,11 @@ import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
 import { RatingModule } from './rating/rating.module';
+import { LikeModule } from './like/like.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, ProfileModule, MaterialModule, CategoryModule, CartModule, OrderModule, PaymentModule, RatingModule],
+  imports: [AuthModule, PrismaModule, ProfileModule, MaterialModule, CategoryModule, CartModule, OrderModule, PaymentModule, RatingModule, LikeModule, NotificationModule],
   controllers: [AppController],
   providers: [AppService],
 })

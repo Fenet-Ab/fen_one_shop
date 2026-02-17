@@ -12,6 +12,7 @@ export default function CartPage() {
     const { cart, loading, addToCart, removeFromCart, deleteFromCart } = useCart();
     const { isLoggedIn } = useAuth();
     const [checkingOut, setCheckingOut] = useState(false);
+    const [shippingAddress, setShippingAddress] = useState("");
     const router = useRouter();
 
     const totalPrice = cart?.items.reduce((acc, item) => acc + (item.material.price * item.quantity), 0) || 0;
@@ -22,6 +23,11 @@ export default function CartPage() {
             return;
         }
 
+        if (!shippingAddress.trim()) {
+            toast.error("Please provide a shipping address");
+            return;
+        }
+
         setCheckingOut(true);
         const checkoutToast = toast.loading("Processing checkout...");
         try {
@@ -29,8 +35,10 @@ export default function CartPage() {
             const response = await fetch("http://localhost:5000/api/order/checkout", {
                 method: "POST",
                 headers: {
+                    "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
+                body: JSON.stringify({ shippingAddress }),
             });
 
             if (response.ok) {
@@ -185,6 +193,16 @@ export default function CartPage() {
                             <h2 className="text-2xl font-black italic tracking-tighter">Order Summary</h2>
 
                             <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-gray-400 font-bold uppercase text-[10px] tracking-widest pl-1">Delivery Sanctuary</label>
+                                    <textarea
+                                        value={shippingAddress}
+                                        onChange={(e) => setShippingAddress(e.target.value)}
+                                        placeholder="Enter your precise coordinates for delivery..."
+                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#D4AF37]/50 focus:ring-4 focus:ring-[#D4AF37]/5 transition-all resize-none h-24"
+                                    />
+                                </div>
+
                                 <div className="flex justify-between text-gray-400 font-bold uppercase text-[10px] tracking-widest">
                                     <span>Subtotal</span>
                                     <span>{totalPrice.toLocaleString()} ETB</span>
