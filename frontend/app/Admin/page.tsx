@@ -38,6 +38,12 @@ interface CategoryProgressProps {
   color: string;
 }
 
+interface MarketShareItem {
+  label: string;
+  percentage: number;
+  color: string;
+}
+
 export default function AdminDashboard() {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [activeSection, setActiveSection] = useState("dashboard");
@@ -46,6 +52,8 @@ export default function AdminDashboard() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [marketShare, setMarketShare] = useState<MarketShareItem[]>([]);
+  const [marketShareLoading, setMarketShareLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
 
@@ -61,10 +69,32 @@ export default function AdminDashboard() {
     // Initial fetch for stats
     fetchOrders();
     fetchCustomers();
+    fetchMarketShare();
   }, []);
 
   const handleProductSuccess = () => {
     console.log('Product operation successful');
+  };
+
+  const fetchMarketShare = async () => {
+    setMarketShareLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:5000/api/order/admin/market-share", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMarketShare(data);
+      } else {
+        const errorText = await res.text();
+        console.error(`Failed to fetch market share: ${res.status} ${res.statusText}`, errorText);
+      }
+    } catch (error) {
+      console.error("Error fetching market share:", error);
+    } finally {
+      setMarketShareLoading(false);
+    }
   };
 
   const fetchCustomers = async () => {
@@ -481,10 +511,18 @@ export default function AdminDashboard() {
                   <div className="bg-[#161616] rounded-3xl border border-gray-800/50 p-7 shadow-2xl">
                     <h2 className="text-xl font-extrabold text-white mb-8 tracking-tight">Market Share</h2>
                     <div className="space-y-7">
-                      <CategoryProgress label="Electronics" percentage={85} color="#D4AF37" />
-                      <CategoryProgress label="Clothing" percentage={65} color="#D4AF37" />
-                      <CategoryProgress label="Accessories" percentage={45} color="#D4AF37" />
-                      <CategoryProgress label="Home Decor" percentage={30} color="#D4AF37" />
+                      {marketShareLoading ? (
+                        <div className="flex flex-col items-center justify-center py-10">
+                          <div className="w-8 h-8 border-4 border-[#D4AF37]/20 border-t-[#D4AF37] rounded-full animate-spin mb-3"></div>
+                          <p className="text-gray-500 text-sm">Loading market share...</p>
+                        </div>
+                      ) : marketShare.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-8">No market data available yet.</p>
+                      ) : (
+                        marketShare.map((item, index) => (
+                          <CategoryProgress key={index} label={item.label} percentage={item.percentage} color={item.color} />
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>

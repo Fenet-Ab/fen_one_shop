@@ -22,6 +22,21 @@ export class OrderController {
         return this.orderService.getUserOrders(req.user.userId);
     }
 
+    // Admin Endpoints
+    @Get("admin/all")
+    @UseGuards(JwtGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    adminGetAll() {
+        return this.orderService.getAllOrders();
+    }
+
+    @Get("admin/market-share")
+    @UseGuards(JwtGuard, RolesGuard)
+    @Roles(Role.ADMIN)
+    getMarketShare() {
+        return this.orderService.getMarketShare();
+    }
+
     @Get(":id")
     @UseGuards(JwtGuard)
     getOne(@Param("id") id: string) {
@@ -34,13 +49,7 @@ export class OrderController {
         return this.orderService.deleteOrder(req.user.userId, id);
     }
 
-    // Admin Endpoints
-    @Get("admin/all")
-    @UseGuards(JwtGuard, RolesGuard)
-    @Roles(Role.ADMIN)
-    adminGetAll() {
-        return this.orderService.getAllOrders();
-    }
+
 
     @Patch("delivery/:id")
     @UseGuards(JwtGuard, RolesGuard)

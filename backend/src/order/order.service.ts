@@ -123,6 +123,54 @@ export class OrderService {
         });
     }
 
+    async getMarketShare() {
+        const orders = await this.prisma.order.findMany({
+            where: { paymentStatus: 'PAID' },
+            include: {
+                items: {
+                    include: {
+                        material: {
+                            include: {
+                                category: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const categorySales: Record<string, number> = {};
+        let totalSales = 0;
+
+        for (const order of orders) {
+            for (const item of order.items) {
+                if (!item.material || !item.material.category) {
+                    continue;
+                }
+                const categoryName = item.material.category.name;
+                const saleAmount = item.price * item.quantity;
+
+                if (!categorySales[categoryName]) {
+                    categorySales[categoryName] = 0;
+                }
+                categorySales[categoryName] += saleAmount;
+                totalSales += saleAmount;
+            }
+        }
+
+        const marketShare = Object.keys(categorySales).map(category => {
+            const amount = categorySales[category];
+            const percentage = totalSales > 0 ? (amount / totalSales) * 100 : 0;
+            return {
+                label: category,
+                percentage: Math.round(percentage),
+                color: "#D4AF37"
+            };
+        });
+
+        return marketShare.sort((a, b) => b.percentage - a.percentage);
+    }
+
     async getAllOrders() {
         return this.prisma.order.findMany({
             include: {
