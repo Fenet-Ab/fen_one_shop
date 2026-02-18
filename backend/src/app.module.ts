@@ -12,9 +12,10 @@ import { PaymentModule } from './payment/payment.module';
 import { RatingModule } from './rating/rating.module';
 import { LikeModule } from './like/like.module';
 import { NotificationModule } from './notification/notification.module';
+import { SupportModule } from './support/support.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, ProfileModule, MaterialModule, CategoryModule, CartModule, OrderModule, PaymentModule, RatingModule, LikeModule, NotificationModule],
+  imports: [AuthModule, PrismaModule, ProfileModule, MaterialModule, CategoryModule, CartModule, OrderModule, PaymentModule, RatingModule, LikeModule, NotificationModule, SupportModule],
   controllers: [AppController],
   providers: [AppService],
 })

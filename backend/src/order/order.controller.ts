@@ -10,10 +10,11 @@ export class OrderController {
     constructor(private readonly orderService: OrderService) { }
     @Post("checkout")
     @UseGuards(JwtGuard)
-    checkout(@Req() req, @Body("shippingAddress") shippingAddress: string) {
+    checkout(@Req() req, @Body("shippingAddress") shippingAddress: string, @Body("useLoyaltyPoints") useLoyaltyPoints?: boolean) {
         return this.orderService.createOrderFromCart(
             req.user.userId,
-            shippingAddress
+            shippingAddress,
+            useLoyaltyPoints
         );
     }
 

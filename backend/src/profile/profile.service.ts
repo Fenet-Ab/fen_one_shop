@@ -13,6 +13,7 @@ export class ProfileService {
                 name: true,
                 email: true,
                 createdAt: true,
+                loyaltyPoints: true,
             },
         });
     }
@@ -50,4 +51,31 @@ export class ProfileService {
         return users;
     }
 
+    async getStats(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { loyaltyPoints: true }
+        });
+
+        const orders = await this.prisma.order.findMany({
+            where: { userId }
+        });
+
+        // Active: Either not paid yet OR not delivered yet
+        const activeOrdersCount = orders.filter(o =>
+            o.paymentStatus !== "PAID" || o.deliveryStatus !== "DELIVERED"
+        ).length;
+
+        // Paid: Truly acquired items
+        const paidOrders = orders.filter(o => o.paymentStatus === "PAID");
+        const totalSpent = paidOrders.reduce((acc, o) => acc + o.totalPrice, 0);
+
+        return {
+            loyaltyPoints: user?.loyaltyPoints || 0,
+            totalSpent,
+            activeOrders: activeOrdersCount,
+            totalAcquisitions: paidOrders.length,
+            totalOrders: orders.length
+        };
+    }
 }

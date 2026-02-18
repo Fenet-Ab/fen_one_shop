@@ -9,28 +9,49 @@ export class OrderService {
         private notificationService: NotificationService
     ) { }
 
-    async createOrderFromCart(userId: string, shippingAddress: string) {
-
-        // 1️⃣ Find user cart
-        const cart = await this.prisma.cart.findFirst({
-            where: { userId },
+    async createOrderFromCart(userId: string, shippingAddress: string, useLoyaltyPoints: boolean = false) {
+        // 1️⃣ Find user and cart
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
             include: {
-                items: {
+                carts: {
                     include: {
-                        material: true,
+                        items: {
+                            include: {
+                                material: true,
+                            },
+                        },
                     },
-                },
-            },
+                }
+            }
         });
+
+        const cart = user?.carts[0];
 
         if (!cart || cart.items.length === 0) {
             throw new BadRequestException("Cart is empty");
         }
 
-        // Calculate total first to avoid the '0' price bug
+        // Calculate total first
         let total = 0;
         for (const item of cart.items) {
             total += item.material.price * item.quantity;
+        }
+
+        // Apply Loyalty Discount
+        let discount = 0;
+        if (useLoyaltyPoints && user.loyaltyPoints >= 10) {
+            discount = user.loyaltyPoints; // 1 point = 1 ETB
+            total = Math.max(0, total - discount);
+
+            // Deduct points immediately
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: { loyaltyPoints: 0 }
+            });
+            console.log(`Applied ${discount} ETB discount from loyalty points for user ${userId}`);
+        } else if (useLoyaltyPoints && user.loyaltyPoints > 0) {
+            console.log(`User ${userId} tried to use loyalty points but has less than 10 (${user.loyaltyPoints})`);
         }
 
         // 2️⃣ Create order with total price
@@ -61,7 +82,7 @@ export class OrderService {
         // 4️⃣ Notify Admins
         await this.notificationService.notifyAdmins(
             "New Order Received",
-            `User ${order.user.name} has placed a new order #${order.id.slice(0, 8)} worth ${total} ETB.`,
+            `User ${order.user.name} has placed a new order #${order.id.slice(0, 8)} worth ${total} ETB.${discount > 0 ? ` (Discounted by ${discount} points)` : ''}`,
             "NEW_ORDER",
             order.id,
             `/admin/orders/${order.id}`

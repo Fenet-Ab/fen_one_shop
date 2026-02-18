@@ -22,6 +22,12 @@ export class ProfileController {
     updateProfile(@Req() req: any, @Body() body: any) {
         return this.profileService.updateProfile(req.user.userId, body);
     }
+
+    @UseGuards(JwtGuard)
+    @Get('stats')
+    getStats(@Req() req: any) {
+        return this.profileService.getStats(req.user.userId);
+    }
     @UseGuards(JwtGuard)
     @Delete()
     deleteProfile(@Req() req: any) {

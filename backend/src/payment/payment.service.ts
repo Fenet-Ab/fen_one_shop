@@ -46,17 +46,22 @@ export class PaymentService {
     }
 
     async verifyPayment(orderId: string, txRef?: string) {
-        let reference = txRef;
+        // Fetch order details first
+        const dbOrder = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: { txRef: true, paymentStatus: true, userId: true }
+        });
 
-        // If txRef is missing in URL, try to get it from our database
-        if (!reference) {
-            console.log(`[VERIFY] TxRef missing in URL for Order ${orderId}, looking in DB...`);
-            const dbOrder = await this.prisma.order.findUnique({
-                where: { id: orderId },
-                select: { txRef: true }
-            });
-            reference = dbOrder?.txRef ?? undefined;
+        if (!dbOrder) {
+            return { status: 'failed', message: 'Order not found' };
         }
+
+        // If already paid, return success immediately to prevent double counting
+        if (dbOrder.paymentStatus === 'PAID') {
+            return { status: 'success', message: 'Payment already verified', data: null };
+        }
+
+        let reference = txRef || dbOrder.txRef;
 
         console.log(`[VERIFY] Verifying with Chapa. Order: ${orderId}, Reference: ${reference || 'NOT_FOUND'}`);
 
@@ -86,6 +91,16 @@ export class PaymentService {
                     data: { paymentStatus: 'PAID' },
                 });
                 console.log(`Order ${orderId} marked as PAID`);
+
+                // Add Loyalty Points: 5 points per successful order
+                await this.prisma.user.update({
+                    where: { id: dbOrder.userId },
+                    data: {
+                        loyaltyPoints: { increment: 5 }
+                    }
+                });
+                console.log(`User ${dbOrder.userId} awarded 5 loyalty points.`);
+
                 return { status: 'success', message: 'Payment verified successfully', data: response.data.data };
             }
 
@@ -95,4 +110,6 @@ export class PaymentService {
             return { status: 'failed', message: error.message };
         }
     }
+
+
 }

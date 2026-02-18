@@ -8,6 +8,15 @@ datasource db {
 }
 
 
+model SupportMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
 model Notification {
   id        String   @id @default(uuid())
   userId    String
@@ -41,11 +50,13 @@ model User {
   password      String
   createdAt     DateTime       @default(now())
   role          Role           @default(USER)
+  loyaltyPoints Int            @default(0)
   carts         Cart[]
   likes         Like[]
   orders        Order[]
   ratings       Rating[]
   notifications Notification[]
+  supportMessages SupportMessage[]
 }
 
 model OrderItem {
